@@ -1,0 +1,69 @@
+server:
+  port: 18082
+  shutdown: graceful
+
+spring:
+  main:
+    lazy-initialization: true
+  application:
+    name: load-executor
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    client-id: ${KAFKA_CLIENT_ID:load-executor}
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: ${KAFKA_PRODUCER_ACKS:all}
+      linger-ms: ${KAFKA_PRODUCER_LINGER_MS:5}
+      batch-size: ${KAFKA_PRODUCER_BATCH_SIZE:32768}
+      compression-type: ${KAFKA_PRODUCER_COMPRESSION:zstd}
+      max-in-flight-requests-per-connection: ${KAFKA_PRODUCER_MAX_INFLIGHT:5}
+  datasource:
+    url: jdbc:mysql://localhost:3306/experiment?useSSL=false&serverTimezone=UTC
+    username: demo
+    password: demo123
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      initialization-fail-timeout: -1
+  redis:
+    host: localhost
+    port: 6379
+    database: 0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+load:
+  executor:
+    tick-millis: 100
+    default-max-concurrency: 128
+    worker:
+      min-threads: 8
+      max-threads: 256
+      queue-capacity: 4000
+      keep-alive-seconds: 60
+
+experiment:
+  favorite:
+    key-prefix: fav
+    cache-ttl: 30s
+  wallet:
+    cache-key-prefix: wallet
+    default-ttl: 30s
+  dynamic-config:
+    enabled: ${EXPERIMENT_DYNAMIC_CONFIG_ENABLED:false}
+    server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+    namespace: ${NACOS_NAMESPACE:}
+    group: ${NACOS_EXPERIMENT_GROUP:EXPERIMENT}
+    data-id: ${NACOS_EXPERIMENT_DATA_ID:load-executor-experiment-params.json}
+    timeout-ms: ${NACOS_EXPERIMENT_TIMEOUT_MS:3000}
+    username: ${NACOS_USERNAME:}
+    password: ${NACOS_PASSWORD:}

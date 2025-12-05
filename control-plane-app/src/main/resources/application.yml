@@ -1,0 +1,70 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: control-plane
+
+# Actuator配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true
+    metrics:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.example.scheduler: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+observability:
+  loki:
+    url: http://localhost:3100
+  grafana:
+    url: http://localhost:3000
+    org-id: "1"
+    default-refresh: 5s
+    dashboards:
+      - uid: experiment-monitor
+        title: "实验监控 - Redis & MySQL 核心指标"
+        description: "Redis/MySQL QPS、延迟、线程池等核心指标看板"
+        default-from: now-15m
+        default-to: now
+        height: 800px
+      - uid: logs-observability
+        title: "实验日志（Loki）"
+        description: "Loki 查询日志嵌入面板"
+        default-from: now-15m
+        default-to: now
+        height: 420px
+
+load-executor:
+  base-url: http://localhost:18082
+  connect-timeout-ms: 2000
+  read-timeout-ms: 5000
+
+# 数据生成器默认配置
+data-generator:
+  default-value-size-bytes: 1024
+  default-batch-size: 5000
+  default-ttl-seconds: 3600
+  default-key-prefix: "dg:"
+  default-list-window: 1000
+  default-fav-per-user: 200

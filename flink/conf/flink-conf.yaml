@@ -1,0 +1,24 @@
+blob.server.port: 6124
+metrics.reporter.prom.port: 9251
+taskmanager.memory.process.size: 2048m
+heartbeat.timeout: 50000
+taskmanager.bind-host: 0.0.0.0
+jobmanager.execution.failover-strategy: region
+jobmanager.rpc.address: flink-jobmanager
+metrics.latency.interval: 5 s
+metrics.reporter.prom.factory.class: org.apache.flink.metrics.prometheus.PrometheusReporterFactory
+jobmanager.memory.process.size: 1600m
+heartbeat.interval: 10000
+metrics.scope.delimiter: .
+jobmanager.rpc.port: 6123
+query.server.port: 6125
+rest.bind-address: 0.0.0.0
+rest.port: 8081
+jobmanager.bind-host: 0.0.0.0
+metrics.reporter.prom.largest-label-value-length: 256
+taskmanager.host: flink-taskmanager
+parallelism.default: 2
+taskmanager.numberOfTaskSlots: 2
+rest.address: flink-jobmanager
+state.backend: hashmap
+metrics.reporter.prom.host: 0.0.0.0

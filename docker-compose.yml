@@ -1,0 +1,281 @@
+services:
+  # Redis 7.2 - 实验配置(资源受限以便快速触发阈值)
+  redis:
+    image: redis:7.2
+    container_name: scheduler-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    # Redis 配置：64MB 内存限制 + LRU 淘汰策略
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 64mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --loglevel notice
+    networks:
+      - scheduler-network
+    # Docker 容器资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # RedisInsight - Redis UI 管理工具
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: scheduler-redisinsight
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight-data:/data
+    networks:
+      - scheduler-network
+    depends_on:
+      - redis
+
+  # Redis Exporter
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: scheduler-redis-exporter
+    ports:
+      - "9121:9121"
+    environment:
+      - REDIS_ADDR=redis:6379
+    networks:
+      - scheduler-network
+    depends_on:
+      - redis
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: scheduler-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    networks:
+      - scheduler-network
+    depends_on:
+      - redis
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: scheduler-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      # 允许匿名访问（用于 iframe 嵌入）
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      # 允许 iframe 嵌入
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_SECURITY_COOKIE_SAMESITE=disabled
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - scheduler-network
+    depends_on:
+      - prometheus
+
+  mysql:
+    image: mysql:8.0
+    container_name: scheduler-mysql
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456
+      - MYSQL_DATABASE=experiment
+      - MYSQL_USER=demo
+      - MYSQL_PASSWORD=demo123
+    ports:
+      - "3306:3306"
+    command:
+      - "--character-set-server=utf8mb4"
+      - "--collation-server=utf8mb4_general_ci"
+      - "--max_connections=500"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d
+    networks:
+      - scheduler-network
+
+  # MySQL Exporter
+  mysqld-exporter:
+    image: prom/mysqld-exporter:v0.14.0 # ✅ 固定老版本
+    container_name: scheduler-mysqld-exporter
+    environment:
+      - DATA_SOURCE_NAME=demo:demo123@(mysql:3306)/experiment
+      # 建议更规范写法（不必指定 DB）：
+      # - DATA_SOURCE_NAME=demo:demo123@(mysql:3306)/
+    ports:
+      - "9104:9104"
+    networks:
+      - scheduler-network
+    depends_on:
+      - mysql
+    restart: unless-stopped
+
+  # Loki 日志聚合
+  loki:
+    image: grafana/loki:2.9.2
+    container_name: scheduler-loki
+    command: -config.file=/etc/loki/config.yml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/config.yml:/etc/loki/config.yml
+      - loki-data:/loki
+    networks:
+      - scheduler-network
+    depends_on:
+      - redis
+      - mysql
+
+  # Promtail 日志采集
+  promtail:
+    image: grafana/promtail:2.9.2
+    container_name: scheduler-promtail
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./promtail/config.yml:/etc/promtail/config.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./logs/app:/var/log/app:ro
+    networks:
+      - scheduler-network
+    depends_on:
+      - loki
+
+  flink-jobmanager:
+    image: flink:1.20-scala_2.12-java17
+    container_name: scheduler-flink-jobmanager
+    hostname: flink-jobmanager
+    command: jobmanager
+    ports:
+      - "8081:8081"
+      - "6123:6123"
+      - "9250:9250"
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        metrics.reporter.prom.port: 9250
+    volumes:
+      - ./flink/conf:/opt/flink/conf
+    networks:
+      - scheduler-network
+
+  flink-taskmanager:
+    image: flink:1.20-scala_2.12-java17
+    container_name: scheduler-flink-taskmanager
+    hostname: flink-taskmanager
+    command: taskmanager
+    depends_on:
+      - flink-jobmanager
+    ports:
+      - "9251:9251"
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        metrics.reporter.prom.port: 9251
+    volumes:
+      - ./flink/conf:/opt/flink/conf
+    networks:
+      - scheduler-network
+
+  kafka:
+    build:
+      context: ./kafka
+    image: scheduler/kafka-observability:7.4.1
+    container_name: scheduler-kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+      - "7071:7071"
+    environment:
+      CLUSTER_ID: 4L6g3nShT-eMC2F_GJ6J0Q
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://kafka:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_CONFLUENT_SUPPORT_METRICS_ENABLE: "false"
+      KAFKA_OPTS: "-javaagent:/opt/jmx-exporter/jmx_prometheus_javaagent.jar=7071:/opt/jmx-exporter/config.yml"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - scheduler-network
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    container_name: scheduler-kafka-exporter
+    command:
+      - "--kafka.server=kafka:29092"
+      - "--kafka.version=3.5.1"
+    ports:
+      - "9308:9308"
+    networks:
+      - scheduler-network
+    depends_on:
+      - kafka
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: scheduler-kafka-ui
+    environment:
+      KAFKA_CLUSTERS_0_NAME: scheduler-kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_METRICS_PORT: 7071
+      KAFKA_CLUSTERS_0_METRICS_TYPE: PROMETHEUS
+      KAFKA_CLUSTERS_0_METRICS_ENDPOINT: http://kafka:7071/metrics
+    ports:
+      - "8085:8080"
+    networks:
+      - scheduler-network
+    depends_on:
+      - kafka
+
+networks:
+  scheduler-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  redisinsight-data:
+  prometheus-data:
+  grafana-data:
+  mysql-data:
+  loki-data:
+  kafka-data:

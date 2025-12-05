@@ -1,0 +1,75 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'scheduler-monitor'
+
+scrape_configs:
+  # Prometheus自身监控
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Spring Boot应用监控 (load-executor)
+  - job_name: 'spring-boot-app'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['host.docker.internal:18082']
+        labels:
+          application: 'load-executor'
+          instance: 'host.docker.internal:18082'
+          environment: 'local'
+
+  # Redis监控(通过redis_exporter)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          instance: 'redis:6379'
+          namespace: 'local'
+
+  # MySQL 监控 (通过 mysqld_exporter)
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysqld-exporter:9104']
+        labels:
+          instance: 'mysql:3306'
+          namespace: 'local'
+
+  # Kafka broker metrics (via embedded JMX exporter)
+  - job_name: 'kafka-jmx'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['kafka:7071']
+        labels:
+          instance: 'kafka:29092'
+          namespace: 'local'
+
+  # Kafka exporter (topic / consumer lag)
+  - job_name: 'kafka-exporter'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['kafka-exporter:9308']
+        labels:
+          instance: 'kafka:29092'
+          namespace: 'local'
+
+  # Flink JobManager metrics
+  - job_name: 'flink-jobmanager'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['flink-jobmanager:9250']
+        labels:
+          component: 'flink-jobmanager'
+          namespace: 'local'
+
+  # Flink TaskManager metrics
+  - job_name: 'flink-taskmanager'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['flink-taskmanager:9251']
+        labels:
+          component: 'flink-taskmanager'
+          namespace: 'local'

@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>数据生成器 · Redis 实验</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: linear-gradient(135deg, #0f172a 0%, #111827 35%, #0b1220 100%);
+      --panel: #0f172a;
+      --accent: #38bdf8;
+      --accent-strong: #22d3ee;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --border: #1f2937;
+      --danger: #f97316;
+      --success: #22c55e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Manrope', 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0.2px; }
+    h2 { margin: 16px 0 8px; font-size: 18px; color: var(--muted); }
+    .layout { max-width: 1200px; margin: 0 auto; }
+    .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 20px 45px rgba(0,0,0,0.25);
+    }
+    label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    input, select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0b1220;
+      color: var(--text);
+      font-size: 14px;
+    }
+    input[type="number"]::-webkit-inner-spin-button { opacity: 0.4; }
+    .row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-weight: 600;
+      color: #0b1220;
+      background: linear-gradient(120deg, var(--accent) 0%, var(--accent-strong) 100%);
+      box-shadow: 0 10px 25px rgba(56, 189, 248, 0.25);
+      transition: transform 0.08s ease;
+    }
+    button:active { transform: translateY(1px); }
+    button.ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      box-shadow: none;
+    }
+    .inline { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .progress {
+      position: relative;
+      height: 10px;
+      border-radius: 999px;
+      background: #0b1220;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .progress span {
+      position: absolute;
+      left: 0; top: 0;
+      bottom: 0;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--accent-strong) 100%);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    .small { font-size: 12px; color: var(--muted); }
+    .muted { color: var(--muted); }
+    .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+    .log { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background: #0b1220; padding: 10px 12px; border-radius: 10px; min-height: 60px; white-space: pre-line; border: 1px solid var(--border); }
+    @media (max-width: 960px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <h1>数据生成器 · Redis 实验</h1>
+    <div class="muted">配置数据量与模式，直接对接后端 /api/data-generator/jobs，生成正常/误用对照数据。</div>
+
+    <div class="grid" style="margin-top:16px;">
+      <div class="card">
+        <h2>生成配置</h2>
+        <div class="row">
+          <div>
+            <label>数据源</label>
+            <select id="dataSource">
+              <option value="REDIS">Redis</option>
+            </select>
+          </div>
+          <div>
+            <label>业务域</label>
+            <select id="domain">
+              <option value="USER_POSITION">用户持仓</option>
+              <option value="TRADE_FEED">成交明细</option>
+              <option value="ACTIVE_USERS">活跃用户</option>
+            </select>
+          </div>
+          <div>
+            <label>生成模式</label>
+            <select id="pattern"></select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>记录条数 (recordCount)</label>
+            <input type="number" id="recordCount" placeholder="如 100000">
+          </div>
+          <div>
+            <label>目标总大小 MB (可选)</label>
+            <input type="number" id="targetSizeMb" placeholder="如 512">
+          </div>
+          <div>
+            <label>单条大小 bytes</label>
+            <input type="number" id="valueSizeBytes" placeholder="默认 1024">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>批次大小</label>
+            <input type="number" id="batchSize" placeholder="默认 5000">
+          </div>
+          <div>
+            <label>TTL 秒 (可空)</label>
+            <input type="number" id="ttlSeconds" placeholder="默认 3600">
+          </div>
+          <div>
+            <label>Key 前缀</label>
+            <input type="text" id="keyPrefix" placeholder="默认 dg:">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>List 保留窗口 (交易正常模式)</label>
+            <input type="number" id="listWindow" placeholder="默认 1000">
+          </div>
+          <div>
+            <label>活跃用户日期 (yyyy-MM-dd)</label>
+            <input type="text" id="day" placeholder="空则今日">
+          </div>
+          <div style="display:flex; align-items:flex-end; gap:10px;">
+            <input type="checkbox" id="overwrite" checked style="width:auto; margin:0;">
+            <label style="margin:0;">覆盖已存在 key</label>
+          </div>
+        </div>
+        <div class="inline" style="margin-top:6px; justify-content:space-between;">
+          <div class="tags">
+            <span class="pill" id="hint-mode"></span>
+            <span class="pill" id="hint-risk"></span>
+          </div>
+          <div class="inline">
+            <button id="startBtn">启动生成</button>
+            <button class="ghost" id="cancelBtn">取消任务</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>任务进度</h2>
+        <div class="inline" style="margin-bottom:10px;">
+          <div class="pill">Job ID: <span id="jobId" style="color:var(--text); margin-left:6px;">-</span></div>
+          <div class="pill">状态: <span id="jobStatus" style="color:var(--text); margin-left:6px;">-</span></div>
+        </div>
+        <div class="progress"><span id="progressBar"></span></div>
+        <div class="inline" style="margin-top:8px; justify-content:space-between;">
+          <div class="small">Written: <span id="written">0</span> / <span id="target">0</span></div>
+          <div class="small">Failures: <span id="failures">0</span></div>
+        </div>
+        <div class="small" style="margin-top:6px;">最后错误: <span id="lastError">-</span></div>
+        <div class="small" style="margin-top:6px;">时间: <span id="timestamps">-</span></div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:16px;">
+      <div class="card">
+        <h2>实验提示（正常 vs 误用）</h2>
+        <div class="log" id="experimentTips"></div>
+      </div>
+      <div class="card">
+        <h2>调用日志</h2>
+        <div class="log" id="logBox"></div>
+      </div>
+    </div>
+  </div>
+
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script crossorigin src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    const patternOptions = {
+      USER_POSITION: [
+        { value: "USER_POSITION_PER_USER_HASH", label: "正常：每用户 hash" },
+        { value: "USER_POSITION_GIANT_HASH", label: "误用：巨型 hash + HGETALL" }
+      ],
+      TRADE_FEED: [
+        { value: "TRADE_RECENT_LIST", label: "正常：近期成交队列 + 裁剪" },
+        { value: "TRADE_HISTORY_LIST", label: "误用：全量成交 list，不裁剪" }
+      ],
+      ACTIVE_USERS: [
+        { value: "ACTIVE_USERS_DAILY_SET", label: "按天活跃用户 set" }
+      ]
+    };
+
+    const tips = {
+      USER_POSITION_PER_USER_HASH: "正常建模：pos:user:{id}，按需 HGET/HGETALL 单用户。",
+      USER_POSITION_GIANT_HASH: "误用：所有用户塞一个大 hash，HGETALL 巨 key 风险。",
+      TRADE_RECENT_LIST: "正常：list 保留最近 N 条，LRANGE O(k)。",
+      TRADE_HISTORY_LIST: "误用：全历史 list，LRANGE 0 49 依然 O(N) 越来越慢。",
+      ACTIVE_USERS_DAILY_SET: "按日活跃用户集合，适合 SISMEMBER/SCARD，小规模 SMEMBERS。"
+    };
+
+    const risk = {
+      USER_POSITION_PER_USER_HASH: "安全：分散 key，低风险。",
+      USER_POSITION_GIANT_HASH: "高风险：HGETALL 巨 key。",
+      TRADE_RECENT_LIST: "安全：LTRIM 控制窗口。",
+      TRADE_HISTORY_LIST: "高风险：长 list O(N) LRANGE。",
+      ACTIVE_USERS_DAILY_SET: "注意：SMEMBERS 仅小规模使用。"
+    };
+
+    const experimentCmd = {
+      USER_POSITION_PER_USER_HASH: "redis-cli HGETALL dg:pos:user:1",
+      USER_POSITION_GIANT_HASH: "redis-cli HGETALL dg:pos:all | head",
+      TRADE_RECENT_LIST: "redis-cli LRANGE dg:trades:BTCUSDT 0 49",
+      TRADE_HISTORY_LIST: "redis-cli LRANGE dg:trades:BTCUSDT 0 49",
+      ACTIVE_USERS_DAILY_SET: "redis-cli SCARD dg:active_users:2025-11-24"
+    };
+
+    function App() {
+      const [form, setForm] = useState({
+        dataSource: "REDIS",
+        domain: "USER_POSITION",
+        pattern: "USER_POSITION_PER_USER_HASH",
+        recordCount: "",
+        targetSizeMb: "",
+        valueSizeBytes: "",
+        batchSize: "",
+        ttlSeconds: "",
+        keyPrefix: "",
+        listWindow: "",
+        day: "",
+        overwrite: true
+      });
+      const [job, setJob] = useState(null);
+      const [logText, setLogText] = useState("选择模式后，会显示对应的正常/误用提示与推荐 redis-cli 命令。\n");
+
+      useEffect(() => {
+        setForm(f => ({ ...f, pattern: patternOptions[f.domain][0].value }));
+      }, [form.domain]);
+
+      useEffect(() => {
+        if (!job || !job.id) return;
+        if (["COMPLETED", "FAILED", "CANCELLED"].includes(job.status)) return;
+        const t = setInterval(() => pollJob(job.id), 1500);
+        return () => clearInterval(t);
+      }, [job]);
+
+      const hintMode = useMemo(() => tips[form.pattern] || "", [form.pattern]);
+      const hintRisk = useMemo(() => risk[form.pattern] || "", [form.pattern]);
+      const cmd = useMemo(() => experimentCmd[form.pattern] || "-", [form.pattern]);
+
+      const appendLog = (msg) => {
+        const ts = new Date().toLocaleTimeString();
+        setLogText(prev => `[${ts}] ${msg}\n` + prev);
+      };
+
+      const updateForm = (key, value) => setForm(prev => ({ ...prev, [key]: value }));
+
+      const numberOrNull = (v) => v === "" ? null : Number(v);
+
+      const startJob = async () => {
+        const payload = {
+          ...form,
+          recordCount: numberOrNull(form.recordCount),
+          targetSizeMb: numberOrNull(form.targetSizeMb),
+          valueSizeBytes: numberOrNull(form.valueSizeBytes),
+          batchSize: numberOrNull(form.batchSize),
+          ttlSeconds: numberOrNull(form.ttlSeconds),
+          keyPrefix: form.keyPrefix || null,
+          listWindow: numberOrNull(form.listWindow),
+          day: form.day || null
+        };
+        appendLog("发送创建任务请求...");
+        try {
+          const res = await fetch("/api/data-generator/jobs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok) throw new Error(await res.text() || res.statusText);
+          const data = await res.json();
+          setJob(data);
+          appendLog("任务创建成功，开始轮询进度");
+        } catch (err) {
+          appendLog("创建任务失败: " + err.message);
+          alert("创建任务失败: " + err.message);
+        }
+      };
+
+      const pollJob = async (jobId) => {
+        try {
+          const res = await fetch(`/api/data-generator/jobs/${jobId}`);
+          if (!res.ok) throw new Error(await res.text());
+          const data = await res.json();
+          setJob(data);
+          if (["COMPLETED", "FAILED", "CANCELLED"].includes(data.status)) {
+            appendLog(`任务结束: ${data.status}`);
+          }
+        } catch (err) {
+          appendLog("轮询失败: " + err.message);
+        }
+      };
+
+      const cancelJob = async () => {
+        if (!job || !job.id) {
+          alert("没有正在运行的任务");
+          return;
+        }
+        appendLog("发送取消请求...");
+        try {
+          const res = await fetch(`/api/data-generator/jobs/${job.id}/cancel`, { method: "POST" });
+          if (!res.ok) throw new Error(await res.text());
+          const data = await res.json();
+          setJob(data);
+          appendLog("取消成功");
+        } catch (err) {
+          appendLog("取消失败: " + err.message);
+        }
+      };
+
+      const pct = job && job.target > 0 ? Math.min(100, (job.written / job.target) * 100) : 0;
+
+      const fmt = (v) => v ? new Date(v).toLocaleString() : "-";
+
+      return (
+        <div className="layout">
+          <h1>数据生成器 · Redis 实验</h1>
+          <div className="muted">配置数据量与模式，直接对接后端 /api/data-generator/jobs，生成正常/误用对照数据。</div>
+
+          <div className="grid" style={{ marginTop: 16 }}>
+            <div className="card">
+              <h2>生成配置</h2>
+              <div className="row">
+                <div>
+                  <label>数据源</label>
+                  <select value={form.dataSource} onChange={e => updateForm("dataSource", e.target.value)}>
+                    <option value="REDIS">Redis</option>
+                  </select>
+                </div>
+                <div>
+                  <label>业务域</label>
+                  <select value={form.domain} onChange={e => updateForm("domain", e.target.value)}>
+                    <option value="USER_POSITION">用户持仓</option>
+                    <option value="TRADE_FEED">成交明细</option>
+                    <option value="ACTIVE_USERS">活跃用户</option>
+                  </select>
+                </div>
+                <div>
+                  <label>生成模式</label>
+                  <select value={form.pattern} onChange={e => updateForm("pattern", e.target.value)}>
+                    {patternOptions[form.domain].map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="row">
+                <div>
+                  <label>记录条数 (recordCount)</label>
+                  <input type="number" value={form.recordCount} onChange={e => updateForm("recordCount", e.target.value)} placeholder="如 100000" />
+                </div>
+                <div>
+                  <label>目标总大小 MB (可选)</label>
+                  <input type="number" value={form.targetSizeMb} onChange={e => updateForm("targetSizeMb", e.target.value)} placeholder="如 512" />
+                </div>
+                <div>
+                  <label>单条大小 bytes</label>
+                  <input type="number" value={form.valueSizeBytes} onChange={e => updateForm("valueSizeBytes", e.target.value)} placeholder="默认 1024" />
+                </div>
+              </div>
+              <div className="row">
+                <div>
+                  <label>批次大小</label>
+                  <input type="number" value={form.batchSize} onChange={e => updateForm("batchSize", e.target.value)} placeholder="默认 5000" />
+                </div>
+                <div>
+                  <label>TTL 秒 (可空)</label>
+                  <input type="number" value={form.ttlSeconds} onChange={e => updateForm("ttlSeconds", e.target.value)} placeholder="默认 3600" />
+                </div>
+                <div>
+                  <label>Key 前缀</label>
+                  <input type="text" value={form.keyPrefix} onChange={e => updateForm("keyPrefix", e.target.value)} placeholder="默认 dg:" />
+                </div>
+              </div>
+              <div className="row">
+                <div>
+                  <label>List 保留窗口 (交易正常模式)</label>
+                  <input type="number" value={form.listWindow} onChange={e => updateForm("listWindow", e.target.value)} placeholder="默认 1000" />
+                </div>
+                <div>
+                  <label>活跃用户日期 (yyyy-MM-dd)</label>
+                  <input type="text" value={form.day} onChange={e => updateForm("day", e.target.value)} placeholder="空则今日" />
+                </div>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 10 }}>
+                  <input type="checkbox" checked={form.overwrite} onChange={e => updateForm("overwrite", e.target.checked)} style={{ width: "auto", margin: 0 }} />
+                  <label style={{ margin: 0 }}>覆盖已存在 key</label>
+                </div>
+              </div>
+              <div className="inline" style={{ marginTop: 6, justifyContent: "space-between" }}>
+                <div className="tags">
+                  <span className="pill" id="hint-mode">{hintMode}</span>
+                  <span className="pill" id="hint-risk">{hintRisk}</span>
+                </div>
+                <div className="inline">
+                  <button onClick={startJob}>启动生成</button>
+                  <button className="ghost" onClick={cancelJob}>取消任务</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="card">
+              <h2>任务进度</h2>
+              <div className="inline" style={{ marginBottom: 10 }}>
+                <div className="pill">Job ID: <span style={{ color: "var(--text)", marginLeft: 6 }}>{job?.id || "-"}</span></div>
+                <div className="pill">状态: <span style={{ color: "var(--text)", marginLeft: 6 }}>{job?.status || "-"}</span></div>
+              </div>
+              <div className="progress"><span id="progressBar" style={{ width: `${pct}%` }}></span></div>
+              <div className="inline" style={{ marginTop: 8, justifyContent: "space-between" }}>
+                <div className="small">Written: <span>{job?.written ?? 0}</span> / <span>{job?.target ?? 0}</span></div>
+                <div className="small">Failures: <span>{job?.failures ?? 0}</span></div>
+              </div>
+              <div className="small" style={{ marginTop: 6 }}>最后错误: <span>{job?.lastError || "-"}</span></div>
+              <div className="small" style={{ marginTop: 6 }}>时间: <span>{`开始: ${fmt(job?.startedAt)}  结束: ${fmt(job?.endedAt)}`}</span></div>
+            </div>
+          </div>
+
+          <div className="grid" style={{ marginTop: 16 }}>
+            <div className="card">
+              <h2>实验提示（正常 vs 误用）</h2>
+              <div className="log">
+                {hintMode}\n
+                推荐命令: {cmd}
+              </div>
+            </div>
+            <div className="card">
+              <h2>调用日志</h2>
+              <div className="log" style={{ whiteSpace: "pre-line" }}>{logText}</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.body).render(<App />);
+  </script>
+</body>
+</html>
