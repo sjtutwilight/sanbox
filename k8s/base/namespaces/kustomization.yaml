@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 命名空间先按平台能力分层，后续 Helm 场景只需要复用这些边界。
+resources:
+  - platform-ingress.yaml
+  - platform-storage.yaml
+  - platform-streaming.yaml
+  - platform-apps.yaml
+  - platform-observability.yaml

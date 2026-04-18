@@ -20,6 +20,8 @@ public class Command {
     String groupId;
     String operationId;
     String experimentRunId;
+    String platform;
+    String scenario;
     OperationType operationType;
 
     /**

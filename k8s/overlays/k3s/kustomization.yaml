@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# k3s overlay 只补运行时参数和暴露方式，不改动基线目录语义。
+resources:
+  - ../../base
+  - ingress.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: platform-k3s-runtime
+    namespace: platform-apps
+    literals:
+      # 统一的运行平台标识，便于控制面、执行器和后续看板保持一致标签。
+      - APP_RUNTIME_PROFILE=k3s
+      - CONTROL_PLANE_BASE_URL=http://control-plane-app.platform-apps.svc.cluster.local:8083
+      - LOAD_EXECUTOR_BASE_URL=http://load-executor.platform-apps.svc.cluster.local:18082
+      - REDIS_HOST=redis-cluster-master.platform-storage.svc.cluster.local
+      - REDIS_PORT=6379
+      - KAFKA_BOOTSTRAP_SERVERS=kafka.platform-streaming.svc.cluster.local:9092
+      - NACOS_SERVER_ADDR=nacos.platform-streaming.svc.cluster.local:8848
+      - GRAFANA_URL=http://grafana.platform-observability.svc.cluster.local:3000
+      - LOKI_URL=http://loki.platform-observability.svc.cluster.local:3100
+
+patches:
+  - path: patch-control-plane-app.yaml
+  - path: patch-load-executor.yaml

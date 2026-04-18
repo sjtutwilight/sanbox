@@ -45,6 +45,7 @@ public class WalletSnapshotBuilder {
         WalletSnapshot.RiskAssessment risk = request.isIncludeRisk()
                 ? buildRisk(random, request)
                 : null;
+        byte[] filler = buildFiller(random, request.getFillerBytes());
 
         return WalletSnapshot.builder()
                 .userId(request.getUserId())
@@ -52,6 +53,7 @@ public class WalletSnapshotBuilder {
                 .history(List.copyOf(history))
                 .risk(risk)
                 .generatedAt(Instant.now())
+                .filler(filler)
                 .build();
     }
 
@@ -120,5 +122,14 @@ public class WalletSnapshotBuilder {
         return BigDecimal.valueOf(value)
                 .setScale(6, RoundingMode.HALF_UP)
                 .doubleValue();
+    }
+
+    private byte[] buildFiller(ThreadLocalRandom random, int bytes) {
+        if (bytes <= 0) {
+            return null;
+        }
+        byte[] blob = new byte[bytes];
+        random.nextBytes(blob);
+        return blob;
     }
 }

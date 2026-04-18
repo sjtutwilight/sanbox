@@ -7,6 +7,7 @@ import com.example.scheduler.experiment.ExperimentService;
 import com.example.scheduler.experiment.LoadTask;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -55,16 +56,14 @@ public class ExperimentController {
             @PathVariable String groupId,
             @PathVariable String opId,
             @RequestHeader(value = "X-Experiment-Id", required = false) String experimentRunId,
-            @RequestBody(required = false) OperationExecutionRequest request) {
+            @Valid @RequestBody OperationExecutionRequest request) {
         try {
-            Map<String, Object> overrides = request != null ? request.getParameters() : null;
             return operationCoordinator.startOperation(
                     expId,
                     groupId,
                     opId,
                     experimentRunId,
-                    overrides,
-                    request != null ? request.getLoadShape() : null);
+                    request);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
         } catch (IllegalStateException e) {

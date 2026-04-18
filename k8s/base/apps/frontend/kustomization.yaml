@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 前端只作为展示壳，构建产物由镜像或 CI 注入，不在这里引入额外构建逻辑。
+resources:
+  - deployment.yaml
+  - service.yaml

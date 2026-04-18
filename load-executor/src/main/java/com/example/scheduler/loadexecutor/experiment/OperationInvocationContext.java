@@ -14,6 +14,9 @@ public class OperationInvocationContext {
     Command command;
     LoadPhase phase;
     Map<String, Object> payload;
+    String platform;
+    String scenario;
+    String experimentRunId;
     long sequence;
     Instant scheduledAt;
     Instant startedAt;

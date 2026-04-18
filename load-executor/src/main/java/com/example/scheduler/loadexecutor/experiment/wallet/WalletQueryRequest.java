@@ -18,6 +18,10 @@ public class WalletQueryRequest {
     int historyDays;
     boolean includeRisk;
     Duration ttlOverride;
+    boolean retainSnapshots;
+    int retainPerUser;
+    int retainGlobal;
+    int fillerBytes;
 
     public int segmentOffset() {
         return switch (userSegment.toLowerCase()) {
@@ -40,6 +44,10 @@ public class WalletQueryRequest {
         boolean includeHistory = WalletRequestSupport.boolValue(payload.get("includeHistory"), false);
         int historyDays = WalletRequestSupport.intValue(payload.get("historyDays"), includeHistory ? 7 : 0);
         boolean includeRisk = WalletRequestSupport.boolValue(payload.get("includeRisk"), false);
+        boolean retainSnapshots = WalletRequestSupport.boolValue(payload.get("retainSnapshots"), false);
+        int retainPerUser = WalletRequestSupport.intValue(payload.get("retainPerUser"), retainSnapshots ? 20 : 0);
+        int retainGlobal = WalletRequestSupport.intValue(payload.get("retainGlobal"), 0);
+        int fillerBytes = WalletRequestSupport.intValue(payload.get("fillerBytes"), 0);
         Duration ttlOverride = payload.containsKey("ttlSeconds")
                 ? WalletRequestSupport.durationValue(payload.get("ttlSeconds"), null)
                 : null;
@@ -51,6 +59,10 @@ public class WalletQueryRequest {
                 .historyDays(historyDays)
                 .includeRisk(includeRisk)
                 .ttlOverride(ttlOverride)
+                .retainSnapshots(retainSnapshots)
+                .retainPerUser(Math.max(0, retainPerUser))
+                .retainGlobal(retainGlobal)
+                .fillerBytes(Math.max(0, fillerBytes))
                 .build();
     }
 

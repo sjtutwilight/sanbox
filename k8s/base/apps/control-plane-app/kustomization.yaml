@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 控制面只负责编排和查询，不在这里耦合 Redis/Kafka 连接细节。
+resources:
+  - deployment.yaml
+  - service.yaml

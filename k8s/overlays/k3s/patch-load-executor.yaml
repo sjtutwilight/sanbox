@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-executor
+  namespace: platform-apps
+spec:
+  template:
+    spec:
+      containers:
+        - name: load-executor
+          envFrom:
+            # 执行器只依赖统一的运行参数集合，Redis/Kafka/观测地址都从这里注入。
+            - configMapRef:
+                name: platform-k3s-runtime

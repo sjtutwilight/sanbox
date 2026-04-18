@@ -22,6 +22,8 @@ public class WalletQueryExperimentService {
     private final WalletSnapshotCache cache;
     private final WalletSnapshotBuilder builder;
     private final WalletExperimentProperties properties;
+    private final WalletSnapshotRetainer snapshotRetainer;
+    private final WalletLedgerRepository ledgerRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
@@ -30,6 +32,9 @@ public class WalletQueryExperimentService {
         Duration ttl = request.getTtlOverride() != null ? request.getTtlOverride() : properties.getDefaultTtl();
         WalletSnapshot snapshot = cache.get(request.getUserId())
                 .orElseGet(() -> buildAndCache(request, ttl));
+        if (request.isRetainSnapshots()) {
+            snapshotRetainer.retain(snapshot, request.getRetainPerUser(), request.getRetainGlobal());
+        }
         Map<String, Object> response = new HashMap<>();
         response.put("userId", snapshot.getUserId());
         response.put("assetCount", snapshot.getAssets().size());
@@ -72,21 +77,34 @@ public class WalletQueryExperimentService {
 
     public Map<String, Object> rebuildLedger(OperationInvocationContext context) {
         WalletRebuildRequest request = WalletRebuildRequest.from(context);
-        long records = 0;
+        long totalRecords = 0;
+        var batch = new java.util.ArrayList<WalletLedgerRecord>(request.getBatchSize());
         for (int i = 0; i < request.getUserCount(); i++) {
             long userId = request.getStartUserId() + i;
+            long userRecords = 0;
             for (int d = 0; d < request.getDaysBack(); d++) {
-                records += processLedgerDay(userId, d);
+                WalletLedgerRecord record = processLedgerDay(userId, d);
+                totalRecords += record.getRecordCount();
+                userRecords += record.getRecordCount();
+                batch.add(record);
+                if (batch.size() >= request.getBatchSize()) {
+                    ledgerRepository.saveLedgerRecords(batch);
+                    batch.clear();
+                }
             }
+            ledgerRepository.upsertSummary(userId, userRecords, request.getDaysBack());
             if ((i + 1) % request.getBatchSize() == 0) {
                 Thread.yield();
             }
+        }
+        if (!batch.isEmpty()) {
+            ledgerRepository.saveLedgerRecords(batch);
         }
         return Map.of(
                 "status", "REBUILT",
                 "userCount", request.getUserCount(),
                 "daysBack", request.getDaysBack(),
-                "records", records,
+                "records", totalRecords,
                 "retryMode", request.getRetryMode()
         );
     }
@@ -120,14 +138,21 @@ public class WalletQueryExperimentService {
         return snapshot;
     }
 
-    private long processLedgerDay(long userId, int dayOffset) {
+    private WalletLedgerRecord processLedgerDay(long userId, int dayOffset) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         int operations = random.nextInt(20, 80);
         double checksum = 0;
         for (int i = 0; i < operations; i++) {
             checksum += Math.sin(userId * 0.001 + i) * Math.cos(dayOffset + i * 0.01);
         }
-        return Math.abs(Math.round(checksum * 100));
+        long recordCount = Math.abs(Math.round(checksum * 100));
+        return WalletLedgerRecord.builder()
+                .userId(userId)
+                .dayOffset(dayOffset)
+                .recordCount(recordCount)
+                .checksum(checksum)
+                .processedAt(Instant.now())
+                .build();
     }
 
     private Map<String, Object> randomPayload(int payloadSize) {

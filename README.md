@@ -423,9 +423,20 @@ docker compose up -d flink-jobmanager flink-taskmanager
 
 > 简单总结：**作业拓扑 / 状态 / JVM 指标走 Prometheus，硬件层面仍交给宿主监控**。这样 Grafana 面板聚焦业务语义（job 名、operator、checkpoint），底层资源瓶颈则在节点观察面定位。
 
+### 7.3 Nacos 动态配置服务
 
+- `docker-compose.yml` 新增 `scheduler-nacos`（镜像 `nacos/nacos-server:v2.3.0`，standalone 模式，JVM 预设 512m/256m），默认开放 `8848`（HTTP/Console）与 `9848`（gRPC）端口；
+- 启动：
 
+```bash
+docker compose up -d nacos
+```
 
+- load-executor 环境变量：
+  - `EXPERIMENT_DYNAMIC_CONFIG_ENABLED=true`
+  - `NACOS_SERVER_ADDR=nacos:8848`（容器内部访问；若本机直连则用 `localhost:8848`）
+  - 其余 `NACOS_*` 保持默认即可；
+- 控制面 `/commands` 的 `overrides` 字段会自动写入 Nacos `experimentId/groupId/operationId`，也可登录 `http://localhost:8848/nacos/`（默认账号 `nacos/nacos`）手动增删配置。
 ## 接口
 curl -X GET http://localhost:18082/experiments
 http://{load-executor-host}:18082/commands
@@ -451,3 +462,19 @@ http://{load-executor-host}:18082/commands
     "tags": "scene1"
   }
 }
+
+## k3s 基线与部署入口
+
+当前仓库已经补齐了 `k8s/` 基线骨架，目录边界如下：
+
+- `k8s/base/namespaces`：平台命名空间边界
+- `k8s/base/apps/*`：控制面、执行器、前端的最小 Deployment/Service
+- `k8s/overlays/k3s`：k3s 专用运行参数、Ingress 和统一配置注入
+
+推荐先看这三份文档：
+
+- [K3S_DEPLOYMENT_GUIDE.md](./K3S_DEPLOYMENT_GUIDE.md)：k3s、Helm、Longhorn 和 Redis Cluster 样板安装步骤
+- [K3S_VERIFICATION_TEMPLATE.md](./K3S_VERIFICATION_TEMPLATE.md)：baseline 压测与故障注入记录模板
+- [K3S_SCENARIOS.md](./K3S_SCENARIOS.md)：后续场景清单与平台边界说明
+
+如果你在 k3s 上验证控制面和执行器，优先使用 `k8s/overlays/k3s`，不要把环境差异散落到业务代码里。

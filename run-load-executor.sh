@@ -6,4 +6,5 @@ cd "$SCRIPT_DIR"
 # mvn -pl experiment-core -am install -DskipTests >/dev/null
 cd load-executor
 echo "[run-load-executor] starting load-executor"
-mvn spring-boot:run "$@"
+JVM_ARGS=${JVM_ARGS:--Xms256m -Xmx512m -XX:MaxMetaspaceSize=256m -XX:ReservedCodeCacheSize=128m -XX:+UseG1GC -XX:MaxGCPauseMillis=200}
+mvn spring-boot:run -Dspring-boot.run.jvmArguments="$JVM_ARGS" "$@"

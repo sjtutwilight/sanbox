@@ -23,6 +23,7 @@ import java.util.Map;
 public class ExperimentService {
 
     private final LoadExecutorClient loadExecutorClient;
+    private final ExperimentProfileCatalog profileCatalog;
 
     public List<Experiment> list() {
         List<ExperimentDescriptorResponse> descriptors = loadExecutorClient.listExperiments();
@@ -96,6 +97,7 @@ public class ExperimentService {
                     .type(op.getOperationType())
                     .label(defaultString(op.getLabel(), op.getOperationId()))
                     .hint(op.getHint() != null ? op.getHint() : op.getDescription())
+                    .supportedProfiles(profileCatalog.resolveProfiles(op))
                     .parameters(buildParameters(op.getParameters()))
                     .loadShape(buildLoadShape(op.getLoadShapeTemplate()))
                     .build());

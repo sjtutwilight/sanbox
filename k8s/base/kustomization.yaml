@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 基线层只承载稳定的目录组织，不把平台差异写死在这里。
+resources:
+  - namespaces
+  - apps/control-plane-app
+  - apps/load-executor
+  - apps/frontend

@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platform-apps
+  namespace: platform-ingress
+  annotations:
+    # k3s 默认 Traefik 可直接识别该 Ingress Class。
+    kubernetes.io/ingress.class: traefik
+spec:
+  rules:
+    # 本地验证时可在 /etc/hosts 中把 platform.local 指向 k3s 节点。
+    - host: platform.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+    - host: api.platform.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: control-plane-app
+                port:
+                  number: 8083

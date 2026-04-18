@@ -7,11 +7,15 @@ import com.example.scheduler.loadexecutor.domain.LoadPhase;
 import com.example.scheduler.loadexecutor.domain.LoadPlan;
 import com.example.scheduler.loadexecutor.domain.RunMetrics;
 import com.example.scheduler.loadexecutor.domain.RunStatus;
+import com.example.scheduler.loadexecutor.datasource.redis.RedisStrategyResolver;
 import com.example.scheduler.loadexecutor.experiment.ExperimentInvoker;
 import com.example.scheduler.loadexecutor.experiment.ExperimentOperationHandle;
 import com.example.scheduler.loadexecutor.experiment.OperationInvocationContext;
 import com.example.scheduler.loadexecutor.experiment.config.ExperimentParameterOverrideService;
 import com.example.scheduler.loadexecutor.generator.RequestPayloadGenerator;
+import com.example.scheduler.loadexecutor.runtime.ExecutionTagSupport;
+import com.example.scheduler.loadexecutor.runtime.RunExecutionContext;
+import com.example.scheduler.loadexecutor.runtime.RunExecutionContextHolder;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -52,6 +56,7 @@ public class DefaultLoadExecutor implements LoadExecutor {
     private final ExperimentParameterOverrideService parameterOverrideService;
     private final LoadExecutorProperties properties;
     private final MeterRegistry meterRegistry;
+    private final RedisStrategyResolver redisStrategyResolver;
 
     private final ConcurrentMap<String, RunContext> contexts = new ConcurrentHashMap<>();
 
@@ -172,18 +177,24 @@ public class DefaultLoadExecutor implements LoadExecutor {
                     .tag("experimentId", safe(run.getCommand().getExperimentId()))
                     .tag("experimentRunId", run.getId())
                     .tag("operationId", safe(run.getCommand().getOperationId()))
+                    .tag("platform", safe(run.getCommand().getPlatform()))
+                    .tag("scenario", safe(run.getCommand().getScenario()))
                     .tag("outcome", "success")
                     .register(meterRegistry);
             this.failureCounter = Counter.builder("load_executor_requests_total")
                     .tag("experimentId", safe(run.getCommand().getExperimentId()))
                     .tag("experimentRunId", run.getId())
                     .tag("operationId", safe(run.getCommand().getOperationId()))
+                    .tag("platform", safe(run.getCommand().getPlatform()))
+                    .tag("scenario", safe(run.getCommand().getScenario()))
                     .tag("outcome", "error")
                     .register(meterRegistry);
             this.latencyTimer = Timer.builder("load_executor_request_latency_ms")
                     .tag("experimentId", safe(run.getCommand().getExperimentId()))
                     .tag("experimentRunId", run.getId())
                     .tag("operationId", safe(run.getCommand().getOperationId()))
+                    .tag("platform", safe(run.getCommand().getPlatform()))
+                    .tag("scenario", safe(run.getCommand().getScenario()))
                     .register(meterRegistry);
         }
 
@@ -300,6 +311,8 @@ public class DefaultLoadExecutor implements LoadExecutor {
             Instant scheduled = Instant.now();
             long startNs = System.nanoTime();
             boolean success = false;
+            RunExecutionContext executionContext = buildExecutionContext();
+            RunExecutionContextHolder.set(executionContext);
             try {
                 Map<String, Object> payload = new HashMap<>();
                 Map<String, Object> generated = payloadGenerator.nextPayload(command, phase, sequence);
@@ -317,6 +330,9 @@ public class DefaultLoadExecutor implements LoadExecutor {
                         .command(command)
                         .phase(phase)
                         .payload(immutablePayload)
+                        .platform(command.getPlatform())
+                        .scenario(command.getScenario())
+                        .experimentRunId(command.getExperimentRunId())
                         .sequence(sequence)
                         .scheduledAt(scheduled)
                         .startedAt(Instant.now())
@@ -338,7 +354,20 @@ public class DefaultLoadExecutor implements LoadExecutor {
                 if (success) {
                     successRequests.incrementAndGet();
                 }
+                RunExecutionContextHolder.clear();
             }
+        }
+
+        /**
+         * 构造当前执行对应的 profile 上下文，供数据源路由和指标标签复用。
+         */
+        private RunExecutionContext buildExecutionContext() {
+            return RunExecutionContext.builder()
+                    .platform(command.getPlatform())
+                    .scenario(command.getScenario())
+                    .experimentRunId(command.getExperimentRunId())
+                    .redisStrategy(redisStrategyResolver.resolve())
+                    .build();
         }
 
         private void publishMetrics() {

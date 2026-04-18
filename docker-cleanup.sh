@@ -40,3 +40,6 @@ echo "=== 清理完成 ==="
 echo ""
 echo "现在可以运行: docker compose up -d"
 
+
+
+

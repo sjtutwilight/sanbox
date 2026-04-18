@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-executor
+  namespace: platform-apps
+  labels:
+    app.kubernetes.io/name: load-executor
+    app.kubernetes.io/component: executor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: load-executor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: load-executor
+        app.kubernetes.io/component: executor
+    spec:
+      containers:
+        - name: load-executor
+          image: load-executor:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 18082
+          env:
+            # 运行时约定：k3s overlay 里统一下发依赖地址，业务代码不感知基础设施拓扑。
+            - name: SPRING_PROFILES_ACTIVE
+              value: k3s
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka.platform-streaming.svc.cluster.local:9092
+            - name: REDIS_HOST
+              value: redis-cluster-master.platform-storage.svc.cluster.local
+            - name: REDIS_PORT
+              value: "6379"
+            - name: NACOS_SERVER_ADDR
+              value: nacos.platform-streaming.svc.cluster.local:8848
+            - name: EXPERIMENT_DYNAMIC_CONFIG_ENABLED
+              value: "false"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 40
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi

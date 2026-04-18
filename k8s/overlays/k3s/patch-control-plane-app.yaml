@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: control-plane-app
+  namespace: platform-apps
+spec:
+  template:
+    spec:
+      containers:
+        - name: control-plane-app
+          envFrom:
+            # overlay 统一注入 k3s 运行参数，避免把环境差异写死在镜像里。
+            - configMapRef:
+                name: platform-k3s-runtime

@@ -22,6 +22,12 @@ public class CommandRequest {
     private String operationId;
 
     private String experimentRunId;
+    
+    @NotBlank
+    private String platform;
+
+    @NotBlank
+    private String scenario;
 
     private OperationType operationType;
 

@@ -1,0 +1,156 @@
+{
+  "uid": "chm-cache",
+  "title": "Concurrent Cache Experiment (CHM)",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "tags": [
+    "concurrenthashmap",
+    "experiment"
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Map Size",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "targets": [
+        {
+          "expr": "concurrent_cache_size{cache!=\"\"}",
+          "legendFormat": "{{cache}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Hit / Miss Rate",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "targets": [
+        {
+          "expr": "rate(concurrent_cache_hit_total[1m])",
+          "legendFormat": "{{cache}} hit",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(concurrent_cache_miss_total[1m])",
+          "legendFormat": "{{cache}} miss",
+          "refId": "B"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Rebuild / Refresh / Invalidate Rate",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "targets": [
+        {
+          "expr": "rate(concurrent_cache_rebuild_total[1m])",
+          "legendFormat": "{{cache}} rebuild",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(concurrent_cache_refresh_total[1m])",
+          "legendFormat": "{{cache}} refresh",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(concurrent_cache_invalidate_total[1m])",
+          "legendFormat": "{{cache}} invalidate",
+          "refId": "C"
+        },
+        {
+          "expr": "rate(concurrent_cache_evict_total[1m])",
+          "legendFormat": "{{cache}} evict",
+          "refId": "D"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Compute Avg (s)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "targets": [
+        {
+          "expr": "rate(concurrent_cache_compute_seconds_sum[5m]) / rate(concurrent_cache_compute_seconds_count[5m])",
+          "legendFormat": "{{cache}} avg",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      }
+    },
+    {
+      "id": 5,
+      "type": "bargauge",
+      "title": "Value Size / Max Entries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom"
+      },
+      "options": {
+        "displayMode": "basic",
+        "orientation": "horizontal"
+      },
+      "targets": [
+        {
+          "expr": "concurrent_cache_value_bytes{cache!=\"\"}",
+          "legendFormat": "{{cache}} value_bytes",
+          "refId": "A"
+        },
+        {
+          "expr": "concurrent_cache_max_entries{cache!=\"\"}",
+          "legendFormat": "{{cache}} max_entries",
+          "refId": "B"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      }
+    }
+  ]
+}

@@ -18,6 +18,7 @@ public class WalletSnapshot {
     List<TransactionRecord> history;
     RiskAssessment risk;
     Instant generatedAt;
+    byte[] filler;
 
     public List<AssetPosition> getAssets() {
         return assets == null ? Collections.emptyList() : assets;

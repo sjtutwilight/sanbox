@@ -270,6 +270,7 @@ services:
   nacos:
     image: nacos/nacos-server:v2.3.0
     container_name: scheduler-nacos
+    platform: linux/amd64
     environment:
       - MODE=standalone
       - NACOS_AUTH_ENABLE=false

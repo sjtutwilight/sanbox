@@ -47,6 +47,10 @@ public class Experiment {
         private OperationType type;
         private String label;
         private String hint;
+        /**
+         * 该 operation 当前支持的 platform/scenario profile 列表。
+         */
+        private List<OperationProfileDefinition> supportedProfiles;
         private List<OperationParameterDefinition> parameters;
         private LoadShapeTemplate loadShape;
     }
